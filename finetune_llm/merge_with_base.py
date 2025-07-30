@@ -1,85 +1,53 @@
-#!/usr/bin/env python
-# merge_model.py
-# Script to merge a fine-tuned model with the base model using merged_16bit saving method
-
 import argparse
-import os
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from huggingface_hub import HfApi
+from peft import PeftModel
+import torch
+from trl import setup_chat_format
 
+def main(args):
+    # Tải tokenizer từ base model hoặc từ LoRA model nếu có thêm các token đặc biệt
+    tokenizer = AutoTokenizer.from_pretrained(args.peft_model_path)
 
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Merge a fine-tuned model checkpoint into a single merged-16bit model"
-    )
-    parser.add_argument(
-        "--base_model", type=str, required=True,
-        help="Pretrained base model identifier or path"
-    )
-    parser.add_argument(
-        "--tuned_checkpoint", type=str, required=True,
-        help="Directory of the fine-tuned checkpoint (output folder)"
-    )
-    parser.add_argument(
-        "--merged_model_name", type=str, required=True,
-        help="Name for the merged model (local directory)"
-    )
-    parser.add_argument(
-        "--tokenizer_name", type=str, default=None,
-        help="Tokenizer identifier or path (defaults to base_model)"
-    )
-    parser.add_argument(
-        "--hf_token", type=str, default=None,
-        help="Hugging Face token for push_to_hub (optional)"
-    )
-    parser.add_argument(
-        "--push_to_hub", action="store_true",
-        help="Whether to push merged model to the Hub"
-    )
-    return parser.parse_args()
-
-
-def main():
-    args = parse_args()
-    
-    # Determine tokenizer source
-    tokenizer_source = args.tokenizer_name if args.tokenizer_name else args.base_model
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_source, use_fast=True)
-
-    # Load the fine-tuned model checkpoint (assumes PeftModel or custom)
-    # For many PEFT setups, you would load as PeftModel.from_pretrained(base, tuned_checkpoint)
-    # Here, we assume direct load:
-    model = AutoModelForCausalLM.from_pretrained(
-        args.tuned_checkpoint,
-        low_cpu_mem_usage=True,
-        trust_remote_code=True,
+    # Tải base model
+    base_model = AutoModelForCausalLM.from_pretrained(
+        args.base_model_path,
+        torch_dtype=torch.bfloat16,
+        low_cpu_mem_usage=True
     )
 
-    # Create local directory for merged model
-    os.makedirs(args.merged_model_name, exist_ok=True)
+    # Áp dụng LoRA adapter từ mô hình fine-tuned vào base model
+    peft_model = PeftModel.from_pretrained(base_model, args.peft_model_path)
 
-    # Save merged weights in 16-bit
-    model.save_pretrained_merged(
-        args.merged_model_name,
-        tokenizer,
-        save_method="merged_16bit",
-    )
-    print(f"Merged model saved locally at: {args.merged_model_name}")
+    # Merge LoRA layers vào base model
+    peft_model = peft_model.merge_and_unload()
 
-    # Optionally push to Hugging Face Hub
-    if args.push_to_hub and args.hf_token:
-        api = HfApi()
-        user_info = api.whoami(token=args.hf_token)
-        hf_user = user_info.get("name")
-        repo_id = f"{hf_user}/{args.merged_model_name}"
-        model.push_to_hub_merged(
-            repo_id,
-            tokenizer=tokenizer,
-            save_method="merged_16bit",
-            token=args.hf_token,
-        )
-        print(f"Merged model pushed to: https://huggingface.co/{repo_id}")
+    # Lưu lại mô hình đã merge để sử dụng cho suy luận sau này
+    peft_model.save_pretrained(args.output_path)
+    tokenizer.save_pretrained(args.output_path)
 
+    print(f"Merged model and tokenizer saved to {args.output_path}")
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Merge LoRA model into base model")
+
+    parser.add_argument(
+        "--base_model_path", 
+        type=str, 
+        default="Qwen/Qwen2.5-7B-Instruct-1M", 
+        help="Path to the base model"
+    )
+    parser.add_argument(
+        "--peft_model_path", 
+        type=str, 
+        default="./output_ckp/checkpoint-1", 
+        help="Path to the fine-tuned LoRA model"
+    )
+    parser.add_argument(
+        "--output_path", 
+        type=str, 
+        default="./merge_model", 
+        help="Path to save the merged model"
+    )
+
+    args = parser.parse_args()
+    main(args)
