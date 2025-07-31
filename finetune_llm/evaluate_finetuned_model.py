@@ -47,14 +47,14 @@ for index, row in tqdm.tqdm(df.iterrows()):
         if 0 <= score <= 1:
             list_score.append(score)
         else:
-            print(f"⚠️ Điểm không hợp lệ tại dòng {index}: {score_text}")
+            print(f"Điểm không hợp lệ tại dòng {index}: {score_text}")
     except Exception as e:
-        print(f"❌ Lỗi tại dòng {index}: {e}")
+        print(f"Lỗi tại dòng {index}: {e}")
         continue
 
 # Tính điểm trung bình
 if list_score:
     final_score = sum(list_score) / len(list_score)
-    print(f"\n✅ Final Score: {final_score:.4f}")
+    print(f"\nFinal Score: {final_score:.4f}")
 else:
-    print("⚠️ Không có điểm nào được tính.")
+    print("Không có điểm nào được tính.")
