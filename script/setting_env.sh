@@ -1,9 +1,8 @@
-curl -Ls https://astral.sh/uv/install.sh | sh
-
-uv vnenv project
+uv venv project
 
 source project/bin/activate
 
 uv init
 
-uv add -r requirements.txt
+uv add -r requirements.txt --active
+
