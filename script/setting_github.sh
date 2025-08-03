@@ -1,4 +1,4 @@
-git remote add git@github.com:AE-AI-HIT15/hit-product-group-2.git
+git remote add git@github.com:PhanDaiCuong/Chatbot_VietNamese_Law.git
 
 git branch -m main
 git config --global user.email "phancuongtmtlhp@gmail.com"
